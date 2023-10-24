@@ -1,7 +1,7 @@
 
 import { EventEmitter } from 'events';
 import * as mqttsn from '../mqttsn-packet';
-import * as mqtt from 'mqtt';
+import {MqttClient, connect }from 'mqtt';
 import { log } from './Logger';
 import { Forwarder, ForwarderMessage } from './Forwarder';
 import { DBInterface } from './interfaces';
@@ -49,11 +49,11 @@ export class Gateway extends EventEmitter {
 
   db: DBInterface;
   forwarder: Forwarder;
-  client:null|typeof mqtt.Client = null;
+  client!: MqttClient;
   externalClient: boolean = false;
   allowUnknownDevices: boolean = true;
-  keepAliveInterval: null | NodeJS.Timer = null;
-  advertiseInterval: null | NodeJS.Timer = null;
+  keepAliveInterval!: NodeJS.Timeout;
+  advertiseInterval!: NodeJS.Timeout;
 
   _onClientConnect: any;
   _onClientOffline: any;
@@ -61,7 +61,7 @@ export class Gateway extends EventEmitter {
   _onClientMessage: any;
   _onParserError: any;
 
-  constructor(db: DBInterface, forwarder: Forwarder, client?: typeof mqtt.Client) {
+  constructor(db: DBInterface, forwarder: Forwarder, client?: MqttClient) {
     super();
 
     this.db = db;
@@ -95,12 +95,13 @@ export class Gateway extends EventEmitter {
     parser.removeListener('error', this._onParserError);
 
     this.forwarder.disconnect();
-    delete this.forwarder;
-    delete this.db;
-    if(this.externalClient) delete this.client;
+    // FIXME: wtf?
+    // delete this.forwarder;
+    // delete this.db;
+    // if(this.externalClient) delete this.client;
     if(this.client == null || this.externalClient) return;
     this.client.end(false, () => {
-      delete this.client;
+      // delete this.client;
     });
   }
 
@@ -239,7 +240,7 @@ export class Gateway extends EventEmitter {
 
   async connectMqtt(url: string): Promise<void> {
 
-    if(this.client == null) this.client = mqtt.connect(url);
+    if(this.client == null) this.client = connect(url);
 
     this.client.on('connect', this._onClientConnect);
 
@@ -253,12 +254,12 @@ export class Gateway extends EventEmitter {
       // Do connect event for the first time
       // Subscribe to all saved topics on connect or reconnect
       this.subscribeSavedTopics();
-      return Promise.resolve(null);
+      return Promise.resolve();
     }
     else {
       return new Promise<void>((resolve, reject) => {
         this.client.once('connect', () => {
-          resolve(null);
+          resolve();
         });
       });
     }
@@ -540,7 +541,7 @@ export class Gateway extends EventEmitter {
     let subscription = await this.db.setSubscription({ address: addr }, { name: topicName }, qos);
     // Check if topic is registered
     let topicInfo = await this.db.getTopic({ address: addr }, { name: topicName });
-    if(!topicInfo) topicInfo = await this.db.setTopic({ address: addr }, topicName, null);  // generate new topic
+    if(!topicInfo) topicInfo = await this.db.setTopic({ address: addr }, topicName);  // generate new topic
 
     let frame = mqttsn.generate({ cmd: 'suback', qos: qos, topicId: topicInfo.id, msgId: msgId, returnCode: 'Accepted' });
     this.forwarder.send(addr, frame);
@@ -639,7 +640,7 @@ export class Gateway extends EventEmitter {
 
     // Check if topic already registered
     let topicInfo = await this.db.getTopic({ address: addr }, { name: topicName });
-    if(!topicInfo) topicInfo = await this.db.setTopic({ address: addr }, topicName, null);  // generate new topic
+    if(!topicInfo) topicInfo = await this.db.setTopic({ address: addr }, topicName);  // generate new topic
 
     // regack with found topic id
     let frame = mqttsn.generate({ cmd: 'regack', topicId: topicInfo.id, returnCode: 'Accepted' });

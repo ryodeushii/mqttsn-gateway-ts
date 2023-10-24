@@ -1,9 +1,9 @@
 import { EventEmitter } from 'events';
 
 export interface DBInterface {
-  destructor();
+  destructor():void;
   connect(): Promise<void>;
-  setDevice(device): Promise<any>;
+  setDevice(device: any): Promise<any>;
   removeDevice(device: any): Promise<boolean>;
   getDeviceByAddr(addr: number): Promise<any>;
   getDeviceById(id: number): Promise<any>;
@@ -25,7 +25,7 @@ export interface DBInterface {
 
 export interface TransportInterface extends EventEmitter {
   connect(): Promise<void>;
-  close(callback?: Function);
-  write(data: any);
-  writeNow();
+  close(callback?: Function): void;
+  write(data: any): void;
+  writeNow(): void
 }
